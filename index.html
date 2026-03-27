@@ -175,6 +175,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Syne',
   opacity:0;transition:opacity 0.14s;pointer-events:none;backdrop-filter:blur(2px);
 }
 .shade-cell.copied .shade-overlay{opacity:1}
+.base-cell{outline:2px solid rgba(255,255,255,0.35);outline-offset:-2px;border-radius:6px;z-index:1}
+.base-dot{
+  display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:currentColor;margin-left:4px;vertical-align:middle;opacity:0.8;
+}
 
 /* PREVIEW TAB - COMMON */
 .preview-wrap{display:flex;flex-direction:column;gap:20px}
@@ -493,6 +498,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Syne',
       <button class="add-btn" onclick="addScale()">
         <span style="font-size:16px;line-height:1">+</span> Add color scale
       </button>
+      <button class="add-btn" onclick="randomizeFirst()" style="border-style:solid;color:var(--text2)">
+        ↻ Generate random <span style="font-family:'JetBrains Mono',monospace;font-size:10px;background:var(--bg4);padding:2px 6px;border-radius:4px;margin-left:4px">Space</span>
+      </button>
       <button class="main-exp-btn" onclick="openExportModal()">
         Export Scales
       </button>
@@ -628,25 +636,47 @@ function contrastColor(hex) {
 }
 
 // ─── SHADE GENERATION ────────────────────────────────────
+// Target lightness for each stop (Tailwind-calibrated, HSL space)
+const STOP_L  = [97, 93, 87, 79, 70, 59, 48, 38, 28, 19, 12];
+const STOPS_N = [50,100,200,300,400,500,600,700,800,900,950];
+
 function generateScale(inputHex) {
-  const [h,s,l]=hexToHsl(inputHex);
-  const stops=[50,100,200,300,400,500,600,700,800,900,950];
-  const maxL=97,minL=4;
-  const naturalT=(maxL-l)/(maxL-minL);
-  const result={};
-  stops.forEach((stop,i)=>{
-    let t;
-    if(i<=5) t=(i/5)*naturalT;
-    else t=naturalT+((i-5)/5)*(1-naturalT);
-    // Ease: slight S-curve
-    t=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
-    const lt=maxL-t*(maxL-minL);
-    let sat;
-    if(i<=5) sat=s*(0.25+0.75*(i/5));
-    else sat=s*Math.min(1.2,1+(i-5)*0.04);
-    sat=Math.min(100,Math.max(0,sat));
-    result[stop]=hslToHex(h,sat,Math.max(minL,Math.min(maxL,lt)));
+  const [h, s, l] = hexToHsl(inputHex);
+
+  // Find which stop the input color maps to.
+  // Saturated colors appear perceptually darker → bias lightness down slightly.
+  const perceivedL = l * (1 - s / 350);
+  let baseIdx = 5;
+  let minDiff = Infinity;
+  STOP_L.forEach((tl, idx) => {
+    const d = Math.abs(tl - perceivedL);
+    if (d < minDiff) { minDiff = d; baseIdx = idx; }
   });
+
+  const result = { _baseStop: STOPS_N[baseIdx] };
+
+  STOPS_N.forEach((stop, idx) => {
+    if (idx === baseIdx) {
+      result[stop] = inputHex;
+      return;
+    }
+
+    const targetL = STOP_L[idx];
+    let targetS;
+
+    if (idx < baseIdx) {
+      // Lighter than base → reduce saturation, but keep enough for visible tint
+      const relPos = (baseIdx - idx) / baseIdx;          // 0→1 as we go lighter
+      targetS = s * Math.max(0.12, 1 - relPos * 0.80);
+    } else {
+      // Darker than base → mostly maintain saturation
+      const relPos = (idx - baseIdx) / (10 - baseIdx + 0.001);
+      targetS = s * Math.max(0.50, 1 - relPos * 0.38);
+    }
+
+    result[stop] = hslToHex(h, Math.min(100, Math.max(4, targetS)), targetL);
+  });
+
   return result;
 }
 
@@ -691,8 +721,16 @@ function updateScaleFormat(id, fmt) {
   if(sc) { sc.format=fmt; renderPaletteTab(); }
 }
 function randomColor() {
-  const palette=['#e11d48','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#6366f1','#10b981','#f59e0b'];
+  const palette=['#e11d48','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#6366f1','#10b981','#f59e0b','#a855f7','#06b6d4','#84cc16','#f43f5e','#0ea5e9','#d97706','#7c3aed'];
   return palette[Math.floor(Math.random()*palette.length)];
+}
+function randomizeFirst() {
+  if(!state.scales.length) return;
+  const sc = state.scales[0];
+  const newHex = randomColor();
+  sc.hex = newHex;
+  sc.shades = generateScale(newHex);
+  render();
 }
 
 // ─── CSS VARS ────────────────────────────────────────────
@@ -702,8 +740,22 @@ function updateCssVars() {
   const sh = sc.shades;
   const stops=[50,100,200,300,400,500,600,700,800,900,950];
   let vars = stops.map(n=>`--pv-${n}:${sh[n]}`).join(';');
-  vars += `;--pv-contrast:${contrastColor(sh[500])}`;
-  const {r,g,b}=hexToRgb(sh[500]);
+  // Use the actual input color (base stop) as the primary for previews
+  const baseStop = sh._baseStop || 500;
+  const baseHex = sc.hex;
+  const baseIdx = STOPS_N.indexOf(baseStop);
+  // Map preview semantic slots relative to base stop
+  const clamp = (i) => STOPS_N[Math.max(0, Math.min(10, i))];
+  vars += `;--pv-500:${sh[clamp(baseIdx)]}`;        // base = primary
+  vars += `;--pv-400:${sh[clamp(baseIdx-1)]}`;      // one lighter
+  vars += `;--pv-600:${sh[clamp(baseIdx+1)]}`;      // one darker
+  vars += `;--pv-700:${sh[clamp(baseIdx+2)]}`;
+  vars += `;--pv-300:${sh[clamp(baseIdx-2)]}`;
+  vars += `;--pv-200:${sh[clamp(baseIdx-3)]}`;
+  vars += `;--pv-100:${sh[clamp(baseIdx-4)]}`;
+  vars += `;--pv-50:${sh[clamp(baseIdx-5)]}`;
+  vars += `;--pv-contrast:${contrastColor(baseHex)}`;
+  const {r,g,b}=hexToRgb(baseHex);
   vars += `;--pv-glow:rgba(${r},${g},${b},0.28)`;
   let el=document.getElementById('chromaVars');
   if(!el){el=document.createElement('style');el.id='chromaVars';document.head.appendChild(el);}
@@ -783,14 +835,16 @@ function renderPaletteTab() {
   }
   const stops=[50,100,200,300,400,500,600,700,800,900,950];
   panel.innerHTML = state.scales.map(sc=>{
+    const baseStop = sc.shades._baseStop || 500;
     const cells=stops.map(n=>{
       const hex=sc.shades[n];
       const val=formatValue(hex,sc.format);
       const tc=contrastColor(hex);
-      return `<div class="shade-cell" onclick="copyShade('${hex}','${val}',this)" title="Copy ${val}">
+      const isBase = n === baseStop;
+      return `<div class="shade-cell${isBase?' base-cell':''}" onclick="copyShade('${hex}','${val}',this)" title="Copy ${val}">
         <div class="shade-swatch" style="background:${hex}"></div>
         <div class="shade-info">
-          <div class="shade-num">${n}</div>
+          <div class="shade-num" style="${isBase?'color:var(--text);font-weight:800':''}">${n}${isBase?'<span class="base-dot"></span>':''}</div>
           <div class="shade-val">${sc.format==='hex'?hex.toUpperCase():val}</div>
         </div>
         <div class="shade-overlay" style="color:${tc}">COPY</div>
@@ -798,8 +852,9 @@ function renderPaletteTab() {
     }).join('');
     return `<div class="pal-section">
       <div class="pal-label-row">
-        <div class="pal-dot" style="background:${sc.shades[500]}"></div>
+        <div class="pal-dot" style="background:${sc.hex}"></div>
         <div class="pal-name">${sc.name}</div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);margin-left:4px">— ${sc.hex.toUpperCase()}</span>
         <button class="pal-copy-all" onclick="copyAllShades('${sc.id}')">Copy all</button>
       </div>
       <div class="shade-grid">${cells}</div>
@@ -1192,7 +1247,18 @@ function copyExportCode() {
 
 // ─── KEYBOARD ─────────────────────────────────────────────
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') closeExportModal();
+  if(e.key==='Escape') { closeExportModal(); return; }
+  // Spacebar → randomize first scale (when not typing in an input)
+  if(e.key===' ' && document.activeElement.tagName!=='INPUT'){
+    e.preventDefault();
+    if(state.scales.length){
+      const sc=state.scales[0];
+      const newHex=randomColor();
+      sc.hex=newHex;
+      sc.shades=generateScale(newHex);
+      render();
+    }
+  }
 });
 
 // ─── INIT ─────────────────────────────────────────────────
