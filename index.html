@@ -734,29 +734,33 @@ function randomizeFirst() {
 }
 
 // ─── CSS VARS ────────────────────────────────────────────
-function updateCssVars() {
-  const sc = state.scales[0];
-  if(!sc) return;
+function scaleVars(sc, prefix) {
   const sh = sc.shades;
   const stops=[50,100,200,300,400,500,600,700,800,900,950];
-  let vars = stops.map(n=>`--pv-${n}:${sh[n]}`).join(';');
-  // Use the actual input color (base stop) as the primary for previews
-  const baseStop = sh._baseStop || 500;
-  const baseHex = sc.hex;
-  const baseIdx = STOPS_N.indexOf(baseStop);
-  // Map preview semantic slots relative to base stop
-  const clamp = (i) => STOPS_N[Math.max(0, Math.min(10, i))];
-  vars += `;--pv-500:${sh[clamp(baseIdx)]}`;        // base = primary
-  vars += `;--pv-400:${sh[clamp(baseIdx-1)]}`;      // one lighter
-  vars += `;--pv-600:${sh[clamp(baseIdx+1)]}`;      // one darker
-  vars += `;--pv-700:${sh[clamp(baseIdx+2)]}`;
-  vars += `;--pv-300:${sh[clamp(baseIdx-2)]}`;
-  vars += `;--pv-200:${sh[clamp(baseIdx-3)]}`;
-  vars += `;--pv-100:${sh[clamp(baseIdx-4)]}`;
-  vars += `;--pv-50:${sh[clamp(baseIdx-5)]}`;
-  vars += `;--pv-contrast:${contrastColor(baseHex)}`;
-  const {r,g,b}=hexToRgb(baseHex);
-  vars += `;--pv-glow:rgba(${r},${g},${b},0.28)`;
+  const baseIdx = STOPS_N.indexOf(sh._baseStop || 500);
+  const clamp = i => STOPS_N[Math.max(0,Math.min(10,i))];
+  let v = stops.map(n=>`--${prefix}-${n}:${sh[n]}`).join(';');
+  // Remap semantic slots relative to base stop so the input color drives previews
+  v += `;--${prefix}-500:${sh[clamp(baseIdx)]}`;
+  v += `;--${prefix}-600:${sh[clamp(baseIdx+1)]}`;
+  v += `;--${prefix}-700:${sh[clamp(baseIdx+2)]}`;
+  v += `;--${prefix}-400:${sh[clamp(baseIdx-1)]}`;
+  v += `;--${prefix}-300:${sh[clamp(baseIdx-2)]}`;
+  v += `;--${prefix}-200:${sh[clamp(baseIdx-3)]}`;
+  v += `;--${prefix}-100:${sh[clamp(baseIdx-4)]}`;
+  v += `;--${prefix}-50:${sh[clamp(baseIdx-5)]}`;
+  v += `;--${prefix}-contrast:${contrastColor(sc.hex)}`;
+  const {r,g,b}=hexToRgb(sc.hex);
+  v += `;--${prefix}-glow:rgba(${r},${g},${b},0.25)`;
+  return v;
+}
+
+function updateCssVars() {
+  if(!state.scales.length) return;
+  let vars = scaleVars(state.scales[0], 'pv');
+  // Fallback: sv/tv default to primary so components always have a valid color
+  vars += scaleVars(state.scales[1] || state.scales[0], 'sv');
+  vars += scaleVars(state.scales[2] || state.scales[0], 'tv');
   let el=document.getElementById('chromaVars');
   if(!el){el=document.createElement('style');el.id='chromaVars';document.head.appendChild(el);}
   el.textContent=`:root{${vars}}`;
@@ -872,6 +876,8 @@ function renderComponentTabs() {
 
 function renderComponentsTab() {
   const panel=document.getElementById('tab-components');
+  const hasSecondary = state.scales.length >= 2;
+  const hasTertiary  = state.scales.length >= 3;
   panel.innerHTML=`
     <div class="preview-wrap">
       <div>
@@ -882,20 +888,24 @@ function renderComponentsTab() {
             <button class="pv-btn primary">Save Changes</button>
             <button class="pv-btn primary sm">Submit</button>
           </div>
-          <div class="btn-group" style="margin-top:10px">
+          ${hasSecondary ? `<div class="btn-group" style="margin-top:10px">
+            <button class="pv-btn" style="background:var(--sv-500);color:var(--sv-contrast)">Secondary</button>
+            <button class="pv-btn" style="background:var(--sv-50);color:var(--sv-700);border:1.5px solid var(--sv-200)">${state.scales[1]?.name||'Color 2'} Light</button>
+            ${hasTertiary?`<button class="pv-btn" style="background:var(--tv-500);color:var(--tv-contrast)">${state.scales[2]?.name||'Color 3'}</button>`:''}
+          </div>` : `<div class="btn-group" style="margin-top:10px">
             <button class="pv-btn secondary">Secondary</button>
             <button class="pv-btn ghost">Ghost</button>
             <button class="pv-btn danger">Delete</button>
-          </div>
+          </div>`}
         </div>
       </div>
       <div>
         <div class="preview-section-label">Badges</div>
         <div class="btn-showcase">
           <div class="btn-group">
-            <span class="badge primary">Primary</span>
-            <span class="badge success">✓ Active</span>
-            <span class="badge warning">⚠ Pending</span>
+            <span class="badge primary">${state.scales[0]?.name||'Primary'}</span>
+            ${hasSecondary?`<span class="badge" style="background:var(--sv-100);color:var(--sv-700)">${state.scales[1]?.name||'Secondary'}</span>`:'<span class="badge success">✓ Active</span>'}
+            ${hasTertiary?`<span class="badge" style="background:var(--tv-100);color:var(--tv-700)">${state.scales[2]?.name||'Tertiary'}</span>`:'<span class="badge warning">⚠ Pending</span>'}
             <span class="badge error">✕ Failed</span>
             <span class="badge neutral">Draft</span>
           </div>
@@ -955,7 +965,6 @@ function renderComponentsTab() {
 
 function renderCardsTab() {
   const panel=document.getElementById('tab-cards');
-  const sc=state.scales[0];
   panel.innerHTML=`
     <div class="preview-wrap">
       <div class="preview-row cols-3">
@@ -966,16 +975,20 @@ function renderCardsTab() {
             <div class="stat-val">$48,295</div>
             <div class="stat-badge up">↑ 12.5% this month</div>
             <div class="stat-bar-chart">
-              ${[40,65,45,80,60,90,55,72,85,48,70,95].map((h,i)=>`
-                <div class="sbc-bar${i===11?' active':''}" style="height:${h}%;background:${i===11?'var(--pv-500)':'var(--pv-200)'}"></div>
-              `).join('')}
+              ${[40,65,45,80,60,90,55,72,85,48,70,95].map((h,i)=>{
+                const ci = i % state.scales.length;
+                const colors = ['var(--pv-500)','var(--sv-500)','var(--tv-500)'];
+                const lightColors = ['var(--pv-200)','var(--sv-200)','var(--tv-200)'];
+                const isLast = i===11;
+                return `<div class="sbc-bar" style="height:${h}%;background:${isLast?colors[0]:lightColors[ci]}"></div>`;
+              }).join('')}
             </div>
           </div>
         </div>
         <div>
           <div class="preview-section-label">Profile Card</div>
           <div class="pc profile-card">
-            <div class="avatar">JK</div>
+            <div class="avatar" style="background:var(--sv-100);color:var(--sv-700)">JK</div>
             <div class="profile-name">Jamie Kim</div>
             <div class="profile-role">Senior Designer @ Vercel</div>
             <div class="profile-stats">
@@ -983,7 +996,7 @@ function renderCardsTab() {
               <div class="pstat"><div class="pstat-val">12.4k</div><div class="pstat-label">Followers</div></div>
               <div class="pstat"><div class="pstat-val">891</div><div class="pstat-label">Following</div></div>
             </div>
-            <button class="follow-btn">Follow</button>
+            <button class="follow-btn" style="background:var(--sv-500);color:var(--sv-contrast)">Follow</button>
           </div>
         </div>
         <div>
@@ -1010,14 +1023,14 @@ function renderCardsTab() {
               {icon:'🎉',title:'Deployment successful',sub:'chroma-app was deployed 2 min ago',dot:true},
               {icon:'💬',title:'New comment on design',sub:'Alex left a comment on your mockup',dot:false},
               {icon:'⚡',title:'Performance alert',sub:'Response time exceeded threshold',dot:true},
-            ].map(n=>`
+            ].map((n,i)=>`
               <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #f5f5f5;position:relative">
-                <div style="width:38px;height:38px;border-radius:10px;background:var(--pv-50);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${n.icon}</div>
+                <div style="width:38px;height:38px;border-radius:10px;background:${['var(--pv-50)','var(--sv-50)','var(--tv-50)'][i]};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${n.icon}</div>
                 <div style="flex:1">
                   <div style="font-size:13px;font-weight:600;color:#111;font-family:'Syne',sans-serif">${n.title}</div>
                   <div style="font-size:11px;color:#888;margin-top:2px;font-family:'Syne',sans-serif">${n.sub}</div>
                 </div>
-                ${n.dot?`<div style="width:8px;height:8px;border-radius:50%;background:var(--pv-500);flex-shrink:0"></div>`:''}
+                ${n.dot?`<div style="width:8px;height:8px;border-radius:50%;background:${['var(--pv-500)','var(--sv-500)','var(--tv-500)'][i]};flex-shrink:0"></div>`:''}
               </div>
             `).join('')}
           </div>
@@ -1025,18 +1038,18 @@ function renderCardsTab() {
         <div>
           <div class="preview-section-label">Product Card</div>
           <div class="pc" style="overflow:hidden">
-            <div style="height:140px;background:var(--pv-100);display:flex;align-items:center;justify-content:center;font-size:40px">
+            <div style="height:140px;background:var(--tv-100);display:flex;align-items:center;justify-content:center;font-size:40px">
               🎨
             </div>
             <div style="padding:18px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                 <div style="font-size:16px;font-weight:800;color:#111;font-family:'Syne',sans-serif">Pro Design Kit</div>
-                <span class="badge primary">New</span>
+                <span class="badge" style="background:var(--tv-100);color:var(--tv-700)">New</span>
               </div>
               <div style="font-size:12px;color:#666;font-family:'Syne',sans-serif;line-height:1.5;margin-bottom:14px">Complete UI component library with 500+ components for modern web apps.</div>
               <div style="display:flex;align-items:center;justify-content:space-between">
                 <div style="font-size:22px;font-weight:800;color:#111;font-family:'Syne',sans-serif">$79 <span style="font-size:13px;font-weight:500;color:#aaa;text-decoration:line-through">$149</span></div>
-                <button class="pv-btn primary sm">Add to cart</button>
+                <button class="pv-btn" style="background:var(--tv-500);color:var(--tv-contrast);padding:6px 12px;font-size:11px">Add to cart</button>
               </div>
             </div>
           </div>
@@ -1048,6 +1061,14 @@ function renderCardsTab() {
 
 function renderDashboardTab() {
   const panel=document.getElementById('tab-dashboard');
+  // Bar colors per scale
+  const barColors = ['var(--pv-500)','var(--sv-500)','var(--tv-500)'];
+  const barLightColors = ['var(--pv-200)','var(--sv-200)','var(--tv-200)'];
+  const statColors = [
+    {bg:'var(--pv-50)',trend:'var(--pv-700)',dot:'var(--pv-500)'},
+    {bg:'var(--sv-50)',trend:'var(--sv-700)',dot:'var(--sv-500)'},
+    {bg:'var(--tv-50)',trend:'var(--tv-700)',dot:'var(--tv-500)'},
+  ];
   panel.innerHTML=`
     <div class="preview-wrap">
       <div class="preview-section-label">Analytics Dashboard</div>
@@ -1064,20 +1085,31 @@ function renderDashboardTab() {
             {l:'Total Revenue',v:'$124,592',t:'+18.2%'},
             {l:'Active Users',v:'94,130',t:'+7.4%'},
             {l:'Conversion',v:'3.68%',t:'+0.4%'},
-          ].map(s=>`
-            <div class="ds-card">
+          ].map((s,i)=>`
+            <div class="ds-card" style="border-top:3px solid ${statColors[i].dot}">
               <div class="ds-label">${s.l}</div>
               <div class="ds-val">${s.v}</div>
-              <div class="ds-trend up">↑ ${s.t} vs last month</div>
+              <div class="ds-trend up" style="color:${statColors[i].trend}">↑ ${s.t} vs last month</div>
             </div>
           `).join('')}
         </div>
         <div class="ds-chart">
-          <div class="ds-chart-title">Monthly Revenue</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div class="ds-chart-title">Monthly Revenue</div>
+            <div style="display:flex;gap:12px">
+              ${state.scales.map((sc,i)=>`
+                <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#666;font-family:'Syne',sans-serif">
+                  <div style="width:10px;height:10px;border-radius:2px;background:${barColors[i]}"></div>${sc.name}
+                </div>`).join('')}
+            </div>
+          </div>
           <div class="ds-bars">
-            ${[42,58,50,72,65,85,70,90,78,88,72,100].map((h,i)=>`
-              <div class="ds-bar" style="height:${h}%;background:${i===11?'var(--pv-500)':i>=9?'var(--pv-300)':'var(--pv-200)'}"></div>
-            `).join('')}
+            ${[42,58,50,72,65,85,70,90,78,88,72,100].map((h,i)=>{
+              const colorIdx = i % state.scales.length;
+              const isRecent = i >= 9;
+              const bg = isRecent ? barColors[colorIdx] : barLightColors[colorIdx];
+              return `<div class="ds-bar" style="height:${h}%;background:${bg}"></div>`;
+            }).join('')}
           </div>
           <div class="ds-bar-labels">
             ${['J','F','M','A','M','J','J','A','S','O','N','D'].map(m=>`<span class="ds-bar-lbl">${m}</span>`).join('')}
@@ -1090,20 +1122,20 @@ function renderDashboardTab() {
               <span class="badge primary">Live</span>
             </div>
             ${[
-              {name:'Figma Pro',amount:'+$99',time:'2 min ago',color:'var(--pv-100)',tc:'var(--pv-700)'},
-              {name:'GitHub Copilot',amount:'+$19',time:'1 hr ago',color:'#dcfce7',tc:'#15803d'},
-              {name:'Vercel Pro',amount:'+$20',time:'3 hr ago',color:'var(--pv-50)',tc:'var(--pv-600)'},
-              {name:'AWS Credits',amount:'+$250',time:'Yesterday',color:'#fef9c3',tc:'#a16207'},
+              {name:'Figma Pro',amount:'+$99',time:'2 min ago',ci:0},
+              {name:'GitHub Copilot',amount:'+$19',time:'1 hr ago',ci:1},
+              {name:'Vercel Pro',amount:'+$20',time:'3 hr ago',ci:2},
+              {name:'AWS Credits',amount:'+$250',time:'Yesterday',ci:0},
             ].map(t=>`
               <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">
                 <div style="display:flex;align-items:center;gap:10px">
-                  <div style="width:36px;height:36px;border-radius:8px;background:${t.color};display:flex;align-items:center;justify-content:center;font-size:14px">💳</div>
+                  <div style="width:36px;height:36px;border-radius:8px;background:${['var(--pv-100)','var(--sv-100)','var(--tv-100)'][t.ci]};display:flex;align-items:center;justify-content:center;font-size:14px">💳</div>
                   <div>
                     <div style="font-size:13px;font-weight:600;color:#111;font-family:'Syne',sans-serif">${t.name}</div>
                     <div style="font-size:11px;color:#aaa;font-family:'Syne',sans-serif">${t.time}</div>
                   </div>
                 </div>
-                <div style="font-size:14px;font-weight:700;color:${t.tc};font-family:'Syne',sans-serif">${t.amount}</div>
+                <div style="font-size:14px;font-weight:700;color:${['var(--pv-700)','var(--sv-700)','var(--tv-700)'][t.ci]};font-family:'Syne',sans-serif">${t.amount}</div>
               </div>
             `).join('')}
           </div>
@@ -1115,6 +1147,11 @@ function renderDashboardTab() {
 
 function renderWebsiteTab() {
   const panel=document.getElementById('tab-website');
+  const featColors = [
+    {bg:'var(--pv-100)',color:'var(--pv-700)'},
+    {bg:'var(--sv-100)',color:'var(--sv-700)'},
+    {bg:'var(--tv-100)',color:'var(--tv-700)'},
+  ];
   panel.innerHTML=`
     <div class="preview-wrap">
       <div class="preview-section-label">Landing Page Preview</div>
@@ -1130,12 +1167,12 @@ function renderWebsiteTab() {
           <button class="wp-nav-cta">Start free →</button>
         </div>
         <div class="wp-hero">
-          <div class="wp-hero-badge">✦ Now in public beta</div>
+          <div class="wp-hero-badge" style="background:var(--sv-100);color:var(--sv-700);border-color:var(--sv-200)">✦ Now in public beta</div>
           <h1 class="wp-hero-title">Design tools that <span>move fast</span></h1>
           <p class="wp-hero-sub">The modern platform for teams to design, prototype and ship faster than ever before.</p>
           <div class="wp-hero-btns">
             <button class="wp-btn-primary">Get started free</button>
-            <button class="wp-btn-ghost">See the demo →</button>
+            <button class="wp-btn-ghost" style="border-color:var(--sv-300);color:var(--sv-700)">See the demo →</button>
           </div>
         </div>
         <div class="wp-feats">
@@ -1143,9 +1180,9 @@ function renderWebsiteTab() {
             {icon:'⚡',title:'Blazing Fast',desc:'Build and preview changes in milliseconds with our edge-powered runtime'},
             {icon:'🎨',title:'Design Ready',desc:'Beautiful components out of the box, fully customizable to match your brand'},
             {icon:'🔒',title:'Secure by Default',desc:'Enterprise-grade security with SOC2 compliance and advanced access controls'},
-          ].map(f=>`
+          ].map((f,i)=>`
             <div class="wp-feat">
-              <div class="wp-feat-icon">${f.icon}</div>
+              <div class="wp-feat-icon" style="background:${featColors[i].bg};color:${featColors[i].color}">${f.icon}</div>
               <div class="wp-feat-title">${f.title}</div>
               <div class="wp-feat-desc">${f.desc}</div>
             </div>
