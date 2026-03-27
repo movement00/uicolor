@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHROMA — Color Scale Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0d10;--bg2:#13131a;--bg3:#1a1a24;--bg4:#22222e;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--border3:rgba(255,255,255,0.2);
+  --text:#f0eef8;--text2:#9b98b0;--text3:#555468;
+  --sw:300px;--radius:12px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;overflow:hidden}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+/* LAYOUT */
+.app{display:flex;height:100vh}
+
+/* SIDEBAR */
+.sidebar{
+  width:var(--sw);min-width:var(--sw);
+  background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.sidebar-head{
+  padding:22px 20px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.logo{
+  font-size:16px;font-weight:800;letter-spacing:0.22em;text-transform:uppercase;
+  background:linear-gradient(135deg,#fff 0%,#8b87a8 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.logo-sub{
+  font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text3);
+  letter-spacing:0.12em;text-transform:uppercase;margin-top:2px;
+}
+.sidebar-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+
+/* SCALE CARD */
+.scale-card{
+  background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  overflow:hidden;transition:border-color 0.18s;
+}
+.scale-card:hover,.scale-card.active{border-color:var(--border2)}
+.scale-card-top{display:flex;align-items:center;gap:10px;padding:11px 12px 0}
+.scale-swatch{
+  width:30px;height:30px;border-radius:8px;flex-shrink:0;
+  position:relative;cursor:pointer;transition:transform 0.18s;
+  box-shadow:0 2px 8px rgba(0,0,0,0.4);
+}
+.scale-swatch:hover{transform:scale(1.12)}
+.scale-swatch input[type=color]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;border:none;padding:0;
+}
+.scale-name{
+  flex:1;background:none;border:none;color:var(--text);
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:600;outline:none;
+}
+.scale-name::placeholder{color:var(--text3)}
+.scale-del{
+  width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;color:var(--text3);cursor:pointer;border-radius:6px;
+  transition:all 0.15s;font-size:13px;line-height:1;flex-shrink:0;
+}
+.scale-del:hover{background:rgba(255,70,70,0.14);color:#ff7070}
+.scale-hex-row{
+  display:flex;align-items:center;gap:0;margin:8px 12px;
+  background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:8px;overflow:hidden;
+}
+.hex-hash{
+  padding:7px 4px 7px 10px;font-family:'JetBrains Mono',monospace;
+  font-size:11px;color:var(--text3);user-select:none;
+}
+.hex-inp{
+  flex:1;background:none;border:none;color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:12px;padding:7px 4px;
+  outline:none;min-width:0;text-transform:uppercase;
+}
+.shade-strip{
+  display:flex;height:5px;margin:0 12px 12px;border-radius:4px;overflow:hidden;gap:1px;
+}
+.ss-item{flex:1;height:100%}
+
+/* FORMAT PILLS */
+.fmt-row{display:flex;gap:4px;padding:0 12px 11px}
+.fmt-btn{
+  flex:1;padding:4px 2px;border-radius:6px;border:1px solid var(--border);
+  background:none;color:var(--text3);font-family:'JetBrains Mono',monospace;
+  font-size:9px;cursor:pointer;transition:all 0.14s;letter-spacing:0.06em;text-align:center;
+}
+.fmt-btn.on{border-color:var(--border3);color:var(--text);background:var(--bg2)}
+
+/* ADD + FOOTER */
+.add-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  padding:11px;background:none;border:1px dashed var(--border);border-radius:10px;
+  color:var(--text3);font-family:'Syne',sans-serif;font-size:12px;font-weight:500;
+  cursor:pointer;transition:all 0.18s;letter-spacing:0.06em;
+}
+.add-btn:hover{border-color:var(--border2);color:var(--text2);background:var(--bg3)}
+.sidebar-foot{
+  padding:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;
+}
+.exp-row{display:flex;gap:6px}
+.exp-btn{
+  flex:1;padding:7px 4px;border-radius:7px;border:1px solid var(--border);
+  background:none;color:var(--text2);font-family:'JetBrains Mono',monospace;
+  font-size:10px;cursor:pointer;transition:all 0.15s;text-align:center;letter-spacing:0.04em;
+}
+.exp-btn:hover{border-color:var(--border2);color:var(--text);background:var(--bg3)}
+.main-exp-btn{
+  width:100%;padding:10px;border-radius:8px;border:none;
+  background:var(--text);color:var(--bg);font-family:'Syne',sans-serif;
+  font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.08em;
+  text-transform:uppercase;transition:opacity 0.18s;
+}
+.main-exp-btn:hover{opacity:0.86}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tab-bar{
+  display:flex;align-items:center;padding:0 20px;
+  border-bottom:1px solid var(--border);height:50px;flex-shrink:0;gap:2px;
+}
+.tab{
+  padding:7px 13px;border-radius:7px;border:none;background:none;
+  color:var(--text3);font-family:'Syne',sans-serif;font-size:12px;font-weight:600;
+  cursor:pointer;transition:all 0.15s;letter-spacing:0.05em;position:relative;
+}
+.tab:hover{color:var(--text2);background:var(--bg3)}
+.tab.on{color:var(--text);background:var(--bg3)}
+.tab.on::after{
+  content:'';position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);
+  width:18px;height:2px;background:var(--text);border-radius:2px;
+}
+.tab-content{flex:1;overflow-y:auto;overflow-x:hidden}
+.tab-panel{display:none;padding:24px;animation:fadeIn 0.2s ease}
+.tab-panel.on{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* PALETTE TAB */
+.pal-section{margin-bottom:30px}
+.pal-label-row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.pal-dot{width:8px;height:8px;border-radius:50%}
+.pal-name{font-size:11px;font-weight:700;color:var(--text2);letter-spacing:0.14em;text-transform:uppercase}
+.pal-copy-all{
+  margin-left:auto;padding:4px 10px;border-radius:6px;border:1px solid var(--border);
+  background:none;color:var(--text3);font-family:'JetBrains Mono',monospace;
+  font-size:10px;cursor:pointer;transition:all 0.14s;
+}
+.pal-copy-all:hover{border-color:var(--border2);color:var(--text2)}
+.shade-grid{display:grid;grid-template-columns:repeat(11,1fr);gap:4px}
+.shade-cell{
+  position:relative;cursor:pointer;border-radius:6px;overflow:hidden;
+  transition:transform 0.16s,box-shadow 0.16s;
+}
+.shade-cell:hover{transform:translateY(-3px) scale(1.03);z-index:2;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+.shade-swatch{width:100%;aspect-ratio:1;transition:filter 0.16s}
+.shade-info{padding:6px 5px 5px;background:var(--bg3)}
+.shade-num{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;color:var(--text3);letter-spacing:0.06em}
+.shade-val{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--text3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shade-overlay{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.65);font-size:10px;font-weight:700;letter-spacing:0.1em;
+  opacity:0;transition:opacity 0.14s;pointer-events:none;backdrop-filter:blur(2px);
+}
+.shade-cell.copied .shade-overlay{opacity:1}
+
+/* PREVIEW TAB - COMMON */
+.preview-wrap{display:flex;flex-direction:column;gap:20px}
+.preview-row{display:grid;gap:16px}
+.preview-row.cols-3{grid-template-columns:repeat(3,1fr)}
+.preview-row.cols-2{grid-template-columns:repeat(2,1fr)}
+.preview-row.cols-4{grid-template-columns:repeat(4,1fr)}
+.preview-section-label{
+  font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.16em;
+  text-transform:uppercase;margin-bottom:4px;
+}
+
+/* THE PREVIEW CARD SHELL */
+.pc{
+  background:#fff;border-radius:16px;overflow:hidden;
+  box-shadow:0 2px 20px rgba(0,0,0,0.18);
+}
+.pc.dark{background:#111}
+
+/* BUTTON SHOWCASE */
+.btn-showcase{padding:24px;background:#fff;border-radius:16px;box-shadow:0 2px 20px rgba(0,0,0,0.18)}
+.btn-group{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
+.pv-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:9px 18px;border-radius:8px;border:none;
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer;
+  transition:all 0.16s;letter-spacing:0.02em;
+}
+.pv-btn.sm{padding:6px 12px;font-size:11px}
+.pv-btn.lg{padding:12px 24px;font-size:14px}
+.pv-btn.primary{background:var(--pv-500);color:var(--pv-contrast)}
+.pv-btn.primary:hover{background:var(--pv-600);transform:translateY(-1px);box-shadow:0 4px 14px var(--pv-glow)}
+.pv-btn.secondary{background:var(--pv-50);color:var(--pv-700);border:1.5px solid var(--pv-200)}
+.pv-btn.secondary:hover{background:var(--pv-100)}
+.pv-btn.ghost{background:transparent;color:var(--pv-600);border:1.5px solid var(--pv-300)}
+.pv-btn.ghost:hover{background:var(--pv-50)}
+.pv-btn.danger{background:#fee2e2;color:#dc2626}
+.badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600;
+  font-family:'Syne',sans-serif;
+}
+.badge.primary{background:var(--pv-100);color:var(--pv-700)}
+.badge.success{background:#dcfce7;color:#15803d}
+.badge.warning{background:#fef9c3;color:#a16207}
+.badge.error{background:#fee2e2;color:#dc2626}
+.badge.neutral{background:#f3f4f6;color:#374151}
+
+/* STAT CARD */
+.stat-card{padding:22px 24px}
+.stat-label{font-size:12px;font-weight:500;color:#888;font-family:'Syne',sans-serif}
+.stat-val{font-size:30px;font-weight:800;color:#111;margin-top:4px;font-family:'Syne',sans-serif;letter-spacing:-0.02em}
+.stat-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  margin-top:8px;padding:3px 9px;border-radius:100px;
+  font-size:11px;font-weight:700;font-family:'Syne',sans-serif;
+}
+.stat-badge.up{background:var(--pv-100);color:var(--pv-700)}
+.stat-bar-chart{padding:0 24px 20px;display:flex;align-items:flex-end;gap:6px;height:80px}
+.sbc-bar{
+  flex:1;border-radius:4px 4px 0 0;
+  transition:height 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+.sbc-bar.active{background:var(--pv-500)!important}
+
+/* PROFILE CARD */
+.profile-card{padding:24px;text-align:center}
+.avatar{
+  width:56px;height:56px;border-radius:50%;margin:0 auto 12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:800;font-family:'Syne',sans-serif;
+  background:var(--pv-100);color:var(--pv-700);
+}
+.profile-name{font-size:16px;font-weight:700;color:#111;font-family:'Syne',sans-serif}
+.profile-role{font-size:12px;color:#888;margin-top:2px;font-family:'Syne',sans-serif}
+.profile-stats{display:flex;gap:0;margin-top:16px;border-top:1px solid #f0f0f0;padding-top:16px}
+.pstat{flex:1;text-align:center;border-right:1px solid #f0f0f0}
+.pstat:last-child{border-right:none}
+.pstat-val{font-size:18px;font-weight:800;color:#111;font-family:'Syne',sans-serif}
+.pstat-label{font-size:10px;color:#aaa;margin-top:2px;font-family:'Syne',sans-serif}
+.follow-btn{
+  margin-top:16px;width:100%;padding:10px;border-radius:8px;border:none;cursor:pointer;
+  background:var(--pv-500);color:var(--pv-contrast);
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:700;transition:all 0.15s;
+}
+.follow-btn:hover{background:var(--pv-600);transform:translateY(-1px)}
+
+/* ALERT */
+.alert{
+  padding:14px 16px;border-radius:10px;display:flex;align-items:flex-start;gap:12px;
+  background:var(--pv-50);border:1px solid var(--pv-200);
+}
+.alert-icon{
+  width:20px;height:20px;border-radius:50%;background:var(--pv-500);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:11px;font-weight:800;
+}
+.alert-title{font-size:13px;font-weight:700;color:#111;font-family:'Syne',sans-serif}
+.alert-text{font-size:12px;color:#666;margin-top:2px;font-family:'Syne',sans-serif;line-height:1.5}
+
+/* INPUT */
+.input-group{display:flex;flex-direction:column;gap:6px;padding:20px}
+.inp-label{font-size:12px;font-weight:600;color:#444;font-family:'Syne',sans-serif}
+.inp{
+  padding:10px 14px;border-radius:8px;border:1.5px solid #e5e7eb;
+  font-family:'Syne',sans-serif;font-size:13px;outline:none;color:#111;
+  transition:border-color 0.16s,box-shadow 0.16s;width:100%;background:#fff;
+}
+.inp:focus{border-color:var(--pv-500);box-shadow:0 0 0 3px var(--pv-glow)}
+.inp.error{border-color:#ef4444}
+.inp-hint{font-size:11px;color:#9ca3af;font-family:'Syne',sans-serif}
+.inp-hint.err{color:#ef4444}
+
+/* PRICING CARD */
+.pricing{padding:24px}
+.pricing-badge{
+  display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;
+  background:var(--pv-100);color:var(--pv-700);font-size:10px;font-weight:700;font-family:'Syne',sans-serif;
+  letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;
+}
+.pricing-plan{font-size:22px;font-weight:800;color:#111;font-family:'Syne',sans-serif}
+.pricing-price{display:flex;align-items:baseline;gap:4px;margin-top:8px;margin-bottom:16px}
+.pricing-amt{font-size:42px;font-weight:800;color:#111;font-family:'Syne',sans-serif;letter-spacing:-0.03em}
+.pricing-per{font-size:14px;color:#888;font-family:'Syne',sans-serif}
+.pricing-feats{list-style:none;display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+.pricing-feats li{display:flex;align-items:center;gap:8px;font-size:13px;color:#444;font-family:'Syne',sans-serif}
+.feat-check{
+  width:16px;height:16px;border-radius:50%;background:var(--pv-100);
+  display:flex;align-items:center;justify-content:center;color:var(--pv-600);font-size:10px;font-weight:800;flex-shrink:0;
+}
+.pricing-cta{
+  width:100%;padding:12px;border-radius:9px;border:none;cursor:pointer;
+  background:var(--pv-500);color:var(--pv-contrast);font-family:'Syne',sans-serif;
+  font-size:14px;font-weight:700;transition:all 0.15s;
+}
+.pricing-cta:hover{background:var(--pv-600);transform:translateY(-1px);box-shadow:0 4px 14px var(--pv-glow)}
+
+/* WEBSITE PREVIEW */
+.wp{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,0.18)}
+.wp-nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;border-bottom:1px solid #f0f0f0;
+}
+.wp-logo{font-size:16px;font-weight:800;color:#111;font-family:'Syne',sans-serif}
+.wp-nav-links{display:flex;gap:20px}
+.wp-nav-link{font-size:12px;color:#666;font-family:'Syne',sans-serif;text-decoration:none;cursor:pointer}
+.wp-nav-cta{
+  padding:7px 16px;border-radius:7px;border:none;cursor:pointer;
+  background:var(--pv-500);color:var(--pv-contrast);font-family:'Syne',sans-serif;
+  font-size:12px;font-weight:700;transition:all 0.15s;
+}
+.wp-nav-cta:hover{background:var(--pv-600)}
+.wp-hero{padding:48px 24px;text-align:center;background:var(--pv-50)}
+.wp-hero-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 12px;border-radius:100px;background:var(--pv-100);color:var(--pv-700);
+  font-size:11px;font-weight:600;font-family:'Syne',sans-serif;margin-bottom:18px;border:1px solid var(--pv-200);
+}
+.wp-hero-title{
+  font-size:36px;font-weight:800;color:#111;line-height:1.15;
+  font-family:'Syne',sans-serif;letter-spacing:-0.02em;max-width:500px;margin:0 auto;
+}
+.wp-hero-title span{color:var(--pv-500)}
+.wp-hero-sub{
+  font-size:14px;color:#666;margin:14px auto 0;max-width:380px;line-height:1.65;
+  font-family:'Syne',sans-serif;
+}
+.wp-hero-btns{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:24px}
+.wp-btn-primary{
+  padding:11px 24px;border-radius:9px;border:none;cursor:pointer;
+  background:var(--pv-500);color:var(--pv-contrast);font-family:'Syne',sans-serif;
+  font-size:14px;font-weight:700;transition:all 0.15s;
+}
+.wp-btn-primary:hover{background:var(--pv-600)}
+.wp-btn-ghost{
+  padding:11px 24px;border-radius:9px;cursor:pointer;
+  border:1.5px solid var(--pv-300);background:transparent;color:var(--pv-700);
+  font-family:'Syne',sans-serif;font-size:14px;font-weight:700;transition:all 0.15s;
+}
+.wp-btn-ghost:hover{background:var(--pv-100)}
+.wp-feats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;padding:32px 24px}
+.wp-feat{padding:20px;text-align:center}
+.wp-feat:not(:last-child){border-right:1px solid #f5f5f5}
+.wp-feat-icon{
+  width:42px;height:42px;border-radius:10px;background:var(--pv-100);
+  display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:18px;
+}
+.wp-feat-title{font-size:14px;font-weight:700;color:#111;font-family:'Syne',sans-serif}
+.wp-feat-desc{font-size:12px;color:#888;margin-top:4px;line-height:1.5;font-family:'Syne',sans-serif}
+
+/* DASHBOARD PREVIEW */
+.dash{background:#f8f9fb;border-radius:16px;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,0.18);padding:24px}
+.dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.dash-title{font-size:18px;font-weight:800;color:#111;font-family:'Syne',sans-serif}
+.dash-cta{
+  padding:8px 16px;border-radius:8px;border:none;cursor:pointer;
+  background:var(--pv-500);color:var(--pv-contrast);font-family:'Syne',sans-serif;
+  font-size:12px;font-weight:700;
+}
+.dash-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.ds-card{
+  background:#fff;border-radius:10px;padding:16px;
+  border:1px solid rgba(0,0,0,0.06);
+}
+.ds-label{font-size:11px;color:#888;font-family:'Syne',sans-serif;font-weight:500}
+.ds-val{font-size:22px;font-weight:800;color:#111;font-family:'Syne',sans-serif;letter-spacing:-0.02em;margin-top:2px}
+.ds-trend{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;font-weight:600;font-family:'Syne',sans-serif}
+.ds-trend.up{color:var(--pv-600)}
+.ds-chart{
+  background:#fff;border-radius:10px;padding:18px;border:1px solid rgba(0,0,0,0.06);
+}
+.ds-chart-title{font-size:12px;font-weight:700;color:#333;font-family:'Syne',sans-serif;margin-bottom:14px}
+.ds-bars{display:flex;align-items:flex-end;gap:8px;height:80px}
+.ds-bar{border-radius:4px 4px 0 0;flex:1;transition:height 0.4s cubic-bezier(0.34,1.56,0.64,1)}
+.ds-bar-labels{display:flex;gap:8px;margin-top:6px}
+.ds-bar-lbl{flex:1;text-align:center;font-size:9px;color:#aaa;font-family:'JetBrains Mono',monospace}
+
+/* TOGGLE */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #f5f5f5}
+.toggle-row:last-child{border-bottom:none}
+.toggle-label{font-size:13px;font-weight:600;color:#222;font-family:'Syne',sans-serif}
+.toggle-sub{font-size:11px;color:#888;font-family:'Syne',sans-serif;margin-top:1px}
+.toggle-switch{
+  position:relative;width:38px;height:22px;flex-shrink:0;cursor:pointer;
+}
+.toggle-switch input{display:none}
+.ts-track{
+  position:absolute;inset:0;border-radius:100px;background:#e5e7eb;transition:background 0.2s;
+}
+.ts-knob{
+  position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;
+  background:#fff;transition:transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow:0 1px 4px rgba(0,0,0,0.2);
+}
+.toggle-switch.on .ts-track{background:var(--pv-500)}
+.toggle-switch.on .ts-knob{transform:translateX(16px)}
+
+/* MODAL */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);
+  z-index:100;display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity 0.22s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{
+  background:var(--bg2);border:1px solid var(--border2);border-radius:16px;
+  width:min(640px,90vw);max-height:80vh;display:flex;flex-direction:column;
+  transform:scale(0.95) translateY(10px);transition:transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
+}
+.modal-overlay.open .modal{transform:scale(1) translateY(0)}
+.modal-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 20px;border-bottom:1px solid var(--border);
+}
+.modal-title{font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text)}
+.modal-close{
+  width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;color:var(--text3);cursor:pointer;border-radius:7px;
+  font-size:18px;transition:all 0.14s;
+}
+.modal-close:hover{background:var(--bg3);color:var(--text)}
+.modal-fmt-tabs{display:flex;gap:6px;padding:14px 20px;border-bottom:1px solid var(--border)}
+.mft-btn{
+  padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:none;color:var(--text2);font-family:'JetBrains Mono',monospace;
+  font-size:11px;cursor:pointer;transition:all 0.14s;
+}
+.mft-btn.on{border-color:var(--border2);background:var(--bg3);color:var(--text)}
+.modal-code{
+  flex:1;overflow:auto;padding:20px;
+  font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;
+  color:var(--text2);white-space:pre;
+}
+.modal-foot{
+  padding:14px 20px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px;
+}
+.modal-copy-btn{
+  padding:9px 20px;border-radius:8px;border:none;background:var(--text);
+  color:var(--bg);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;
+  transition:opacity 0.15s;
+}
+.modal-copy-btn:hover{opacity:0.85}
+
+/* TOAST */
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(16px);
+  background:var(--text);color:var(--bg);padding:9px 20px;border-radius:100px;
+  font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;
+  opacity:0;transition:all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  pointer-events:none;z-index:9999;white-space:nowrap;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* EMPTY STATE */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px 20px;text-align:center;gap:12px;
+}
+.empty-icon{font-size:36px;opacity:0.4}
+.empty-text{font-size:14px;color:var(--text3);font-weight:500}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div>
+        <div class="logo">Chroma</div>
+        <div class="logo-sub">Color Scale Generator</div>
+      </div>
+    </div>
+    <div class="sidebar-body" id="scalesList"></div>
+    <div class="sidebar-foot">
+      <button class="add-btn" onclick="addScale()">
+        <span style="font-size:16px;line-height:1">+</span> Add color scale
+      </button>
+      <button class="main-exp-btn" onclick="openExportModal()">
+        Export Scales
+      </button>
+      <div class="exp-row">
+        <button class="exp-btn" onclick="openExportModal('tailwind')">Tailwind</button>
+        <button class="exp-btn" onclick="openExportModal('css')">CSS Vars</button>
+        <button class="exp-btn" onclick="openExportModal('json')">JSON</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="tab-bar">
+      <button class="tab on" data-tab="palette" onclick="switchTab('palette',this)">Palette</button>
+      <button class="tab" data-tab="components" onclick="switchTab('components',this)">Components</button>
+      <button class="tab" data-tab="cards" onclick="switchTab('cards',this)">Cards</button>
+      <button class="tab" data-tab="dashboard" onclick="switchTab('dashboard',this)">Dashboard</button>
+      <button class="tab" data-tab="website" onclick="switchTab('website',this)">Website</button>
+    </div>
+    <div class="tab-content">
+      <div class="tab-panel on" id="tab-palette"></div>
+      <div class="tab-panel" id="tab-components"></div>
+      <div class="tab-panel" id="tab-cards"></div>
+      <div class="tab-panel" id="tab-dashboard"></div>
+      <div class="tab-panel" id="tab-website"></div>
+    </div>
+  </main>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="exportModal" onclick="closeModalIfOverlay(event)">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">Export</span>
+      <button class="modal-close" onclick="closeExportModal()">✕</button>
+    </div>
+    <div class="modal-fmt-tabs">
+      <button class="mft-btn on" onclick="setExportFmt('tailwind',this)">Tailwind</button>
+      <button class="mft-btn" onclick="setExportFmt('css',this)">CSS Variables</button>
+      <button class="mft-btn" onclick="setExportFmt('json',this)">JSON</button>
+    </div>
+    <div class="modal-code" id="exportCode"></div>
+    <div class="modal-foot">
+      <button class="modal-copy-btn" onclick="copyExportCode()">Copy to clipboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────
+let state = {
+  scales: [],
+  activeTab: 'palette',
+  exportFmt: 'tailwind',
+};
+let toastTimer = null;
+let scaleIdCounter = 0;
+
+const INITIAL_COLORS = [
+  { name:'Brand', hex:'#6366f1' },
+];
+
+// ─── COLOR MATH ──────────────────────────────────────────
+function hexToRgb(hex) {
+  hex = hex.replace(/^#/,'');
+  if(hex.length===3) hex=hex.split('').map(x=>x+x).join('');
+  const n=parseInt(hex,16);
+  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+function rgbToHsl(r,g,b) {
+  r/=255;g/=255;b/=255;
+  const max=Math.max(r,g,b),min=Math.min(r,g,b);
+  let h,s,l=(max+min)/2;
+  if(max===min){h=s=0}else{
+    const d=max-min;
+    s=l>0.5?d/(2-max-min):d/(max+min);
+    switch(max){
+      case r:h=(g-b)/d+(g<b?6:0);break;
+      case g:h=(b-r)/d+2;break;
+      case b:h=(r-g)/d+4;break;
+    }
+    h/=6;
+  }
+  return [h*360,s*100,l*100];
+}
+function hslToRgb(h,s,l) {
+  h/=360;s/=100;l/=100;
+  let r,g,b;
+  if(s===0){r=g=b=l}else{
+    const q=l<0.5?l*(1+s):l+s-l*s;
+    const p=2*l-q;
+    const hue2rgb=(p,q,t)=>{
+      if(t<0)t+=1;if(t>1)t-=1;
+      if(t<1/6)return p+(q-p)*6*t;
+      if(t<1/2)return q;
+      if(t<2/3)return p+(q-p)*(2/3-t)*6;
+      return p;
+    };
+    r=hue2rgb(p,q,h+1/3);
+    g=hue2rgb(p,q,h);
+    b=hue2rgb(p,q,h-1/3);
+  }
+  return {r:Math.round(r*255),g:Math.round(g*255),b:Math.round(b*255)};
+}
+function hslToHex(h,s,l) {
+  const {r,g,b}=hslToRgb(h,s,l);
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+function hexToHsl(hex) {
+  const {r,g,b}=hexToRgb(hex);
+  return rgbToHsl(r,g,b);
+}
+function hexToRgbStr(hex) {
+  const {r,g,b}=hexToRgb(hex);
+  return `rgb(${r},${g},${b})`;
+}
+function hexToHslStr(hex) {
+  const [h,s,l]=hexToHsl(hex);
+  return `hsl(${Math.round(h)},${Math.round(s)}%,${Math.round(l)}%)`;
+}
+function luminance(hex) {
+  const {r,g,b}=hexToRgb(hex);
+  const toL=c=>{c/=255;return c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4)};
+  return 0.2126*toL(r)+0.7152*toL(g)+0.0722*toL(b);
+}
+function contrastColor(hex) {
+  const l=luminance(hex);
+  return l>0.35?'#111111':'#ffffff';
+}
+
+// ─── SHADE GENERATION ────────────────────────────────────
+function generateScale(inputHex) {
+  const [h,s,l]=hexToHsl(inputHex);
+  const stops=[50,100,200,300,400,500,600,700,800,900,950];
+  const maxL=97,minL=4;
+  const naturalT=(maxL-l)/(maxL-minL);
+  const result={};
+  stops.forEach((stop,i)=>{
+    let t;
+    if(i<=5) t=(i/5)*naturalT;
+    else t=naturalT+((i-5)/5)*(1-naturalT);
+    // Ease: slight S-curve
+    t=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    const lt=maxL-t*(maxL-minL);
+    let sat;
+    if(i<=5) sat=s*(0.25+0.75*(i/5));
+    else sat=s*Math.min(1.2,1+(i-5)*0.04);
+    sat=Math.min(100,Math.max(0,sat));
+    result[stop]=hslToHex(h,sat,Math.max(minL,Math.min(maxL,lt)));
+  });
+  return result;
+}
+
+function formatValue(hex, fmt) {
+  if(fmt==='hex') return hex.toUpperCase();
+  if(fmt==='rgb') return hexToRgbStr(hex);
+  if(fmt==='hsl') return hexToHslStr(hex);
+  return hex.toUpperCase();
+}
+
+// ─── STATE HELPERS ───────────────────────────────────────
+function addScale(hex, name) {
+  const id = 'sc'+(++scaleIdCounter);
+  const h = hex || randomColor();
+  state.scales.push({
+    id, name: name || 'Color '+(state.scales.length+1),
+    hex: h, format: 'hex', shades: generateScale(h)
+  });
+  render();
+}
+function removeScale(id) {
+  if(state.scales.length<=1) return;
+  state.scales = state.scales.filter(s=>s.id!==id);
+  render();
+}
+function updateScaleHex(id, hex) {
+  if(!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+  const sc=state.scales.find(s=>s.id===id);
+  if(!sc) return;
+  sc.hex=hex;
+  sc.shades=generateScale(hex);
+  updateCssVars();
+  renderPaletteTab();
+  renderComponentTabs();
+}
+function updateScaleName(id, name) {
+  const sc=state.scales.find(s=>s.id===id);
+  if(sc) { sc.name=name; renderPaletteTab(); }
+}
+function updateScaleFormat(id, fmt) {
+  const sc=state.scales.find(s=>s.id===id);
+  if(sc) { sc.format=fmt; renderPaletteTab(); }
+}
+function randomColor() {
+  const palette=['#e11d48','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#6366f1','#10b981','#f59e0b'];
+  return palette[Math.floor(Math.random()*palette.length)];
+}
+
+// ─── CSS VARS ────────────────────────────────────────────
+function updateCssVars() {
+  const sc = state.scales[0];
+  if(!sc) return;
+  const sh = sc.shades;
+  const stops=[50,100,200,300,400,500,600,700,800,900,950];
+  let vars = stops.map(n=>`--pv-${n}:${sh[n]}`).join(';');
+  vars += `;--pv-contrast:${contrastColor(sh[500])}`;
+  const {r,g,b}=hexToRgb(sh[500]);
+  vars += `;--pv-glow:rgba(${r},${g},${b},0.28)`;
+  let el=document.getElementById('chromaVars');
+  if(!el){el=document.createElement('style');el.id='chromaVars';document.head.appendChild(el);}
+  el.textContent=`:root{${vars}}`;
+}
+
+// ─── RENDER ──────────────────────────────────────────────
+function render() {
+  updateCssVars();
+  renderSidebar();
+  renderPaletteTab();
+  renderComponentTabs();
+}
+
+function renderSidebar() {
+  const list = document.getElementById('scalesList');
+  if(!state.scales.length){
+    list.innerHTML='<div class="empty-state"><div class="empty-icon">🎨</div><div class="empty-text">No color scales yet</div></div>';
+    return;
+  }
+  list.innerHTML = state.scales.map(sc=>{
+    const shades=sc.shades;
+    const stops=[50,100,200,300,400,500,600,700,800,900,950];
+    const strip=stops.map(n=>`<div class="ss-item" style="background:${shades[n]}"></div>`).join('');
+    return `
+      <div class="scale-card${sc.id===state.scales[0].id?' active':''}" id="scard-${sc.id}">
+        <div class="scale-card-top">
+          <div class="scale-swatch" style="background:${sc.hex}">
+            <input type="color" value="${sc.hex}" oninput="onColorPick('${sc.id}',this.value)" onchange="onColorPick('${sc.id}',this.value)">
+          </div>
+          <input class="scale-name" placeholder="Scale name" value="${sc.name}" oninput="updateScaleName('${sc.id}',this.value)">
+          ${state.scales.length>1?`<button class="scale-del" onclick="removeScale('${sc.id}')" title="Remove">✕</button>`:''}
+        </div>
+        <div class="scale-hex-row">
+          <span class="hex-hash">#</span>
+          <input class="hex-inp" maxlength="6" value="${sc.hex.slice(1).toUpperCase()}" oninput="onHexInput('${sc.id}',this.value)" onchange="onHexInput('${sc.id}',this.value)">
+        </div>
+        <div class="shade-strip">${strip}</div>
+        <div class="fmt-row">
+          ${['hex','rgb','hsl'].map(f=>`<button class="fmt-btn${sc.format===f?' on':''}" onclick="updateScaleFormat('${sc.id}','${f}')">${f.toUpperCase()}</button>`).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function onColorPick(id, val) {
+  updateScaleHex(id, val);
+  // sync hex input
+  const scard = document.getElementById('scard-'+id);
+  if(scard){
+    const inp = scard.querySelector('.hex-inp');
+    const swatch = scard.querySelector('.scale-swatch');
+    if(inp) inp.value = val.slice(1).toUpperCase();
+    if(swatch) swatch.style.background = val;
+  }
+  // update strip
+  const sc = state.scales.find(s=>s.id===id);
+  if(sc){
+    const strip = scard.querySelector('.shade-strip');
+    if(strip){
+      const stops=[50,100,200,300,400,500,600,700,800,900,950];
+      strip.innerHTML=stops.map(n=>`<div class="ss-item" style="background:${sc.shades[n]}"></div>`).join('');
+    }
+  }
+}
+function onHexInput(id, val) {
+  val = val.replace(/[^0-9a-fA-F]/g,'').slice(0,6);
+  if(val.length===6) updateScaleHex(id,'#'+val);
+}
+
+function renderPaletteTab() {
+  const panel = document.getElementById('tab-palette');
+  if(!state.scales.length){
+    panel.innerHTML='<div class="empty-state"><div class="empty-icon">🎨</div><div class="empty-text">Add a color scale to get started</div></div>';
+    return;
+  }
+  const stops=[50,100,200,300,400,500,600,700,800,900,950];
+  panel.innerHTML = state.scales.map(sc=>{
+    const cells=stops.map(n=>{
+      const hex=sc.shades[n];
+      const val=formatValue(hex,sc.format);
+      const tc=contrastColor(hex);
+      return `<div class="shade-cell" onclick="copyShade('${hex}','${val}',this)" title="Copy ${val}">
+        <div class="shade-swatch" style="background:${hex}"></div>
+        <div class="shade-info">
+          <div class="shade-num">${n}</div>
+          <div class="shade-val">${sc.format==='hex'?hex.toUpperCase():val}</div>
+        </div>
+        <div class="shade-overlay" style="color:${tc}">COPY</div>
+      </div>`;
+    }).join('');
+    return `<div class="pal-section">
+      <div class="pal-label-row">
+        <div class="pal-dot" style="background:${sc.shades[500]}"></div>
+        <div class="pal-name">${sc.name}</div>
+        <button class="pal-copy-all" onclick="copyAllShades('${sc.id}')">Copy all</button>
+      </div>
+      <div class="shade-grid">${cells}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderComponentTabs() {
+  if(!state.scales.length) return;
+  renderComponentsTab();
+  renderCardsTab();
+  renderDashboardTab();
+  renderWebsiteTab();
+}
+
+function renderComponentsTab() {
+  const panel=document.getElementById('tab-components');
+  panel.innerHTML=`
+    <div class="preview-wrap">
+      <div>
+        <div class="preview-section-label">Buttons</div>
+        <div class="btn-showcase">
+          <div class="btn-group">
+            <button class="pv-btn primary lg">Get Started →</button>
+            <button class="pv-btn primary">Save Changes</button>
+            <button class="pv-btn primary sm">Submit</button>
+          </div>
+          <div class="btn-group" style="margin-top:10px">
+            <button class="pv-btn secondary">Secondary</button>
+            <button class="pv-btn ghost">Ghost</button>
+            <button class="pv-btn danger">Delete</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="preview-section-label">Badges</div>
+        <div class="btn-showcase">
+          <div class="btn-group">
+            <span class="badge primary">Primary</span>
+            <span class="badge success">✓ Active</span>
+            <span class="badge warning">⚠ Pending</span>
+            <span class="badge error">✕ Failed</span>
+            <span class="badge neutral">Draft</span>
+          </div>
+        </div>
+      </div>
+      <div class="preview-row cols-2">
+        <div>
+          <div class="preview-section-label">Alert</div>
+          <div class="alert">
+            <div class="alert-icon">i</div>
+            <div>
+              <div class="alert-title">New feature available</div>
+              <div class="alert-text">Your workspace has been upgraded to the Pro plan. Enjoy unlimited exports and advanced features.</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="preview-section-label">Form Input</div>
+          <div class="pc" style="padding:20px;display:flex;flex-direction:column;gap:14px">
+            <div>
+              <div class="inp-label" style="margin-bottom:6px">Email address</div>
+              <input class="inp" type="text" value="hi@chroma.design" readonly>
+            </div>
+            <div>
+              <div class="inp-label" style="margin-bottom:6px">Project name</div>
+              <input class="inp" type="text" placeholder="Enter project name" readonly style="border-color:var(--pv-500);box-shadow:0 0 0 3px var(--pv-glow)">
+              <div class="inp-hint" style="margin-top:5px">This will be your public display name</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="preview-section-label">Settings Toggles</div>
+        <div class="pc">
+          ${[
+            {label:'Email notifications',sub:'Receive updates via email',on:true},
+            {label:'Dark mode',sub:'Use dark color scheme',on:false},
+            {label:'Auto-save',sub:'Automatically save changes',on:true},
+          ].map(t=>`
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-label">${t.label}</div>
+                <div class="toggle-sub">${t.sub}</div>
+              </div>
+              <label class="toggle-switch${t.on?' on':''}">
+                <input type="checkbox"${t.on?' checked':''} onchange="this.parentElement.classList.toggle('on',this.checked)">
+                <div class="ts-track"></div>
+                <div class="ts-knob"></div>
+              </label>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCardsTab() {
+  const panel=document.getElementById('tab-cards');
+  const sc=state.scales[0];
+  panel.innerHTML=`
+    <div class="preview-wrap">
+      <div class="preview-row cols-3">
+        <div>
+          <div class="preview-section-label">Stat Card</div>
+          <div class="pc stat-card">
+            <div class="stat-label">Monthly Revenue</div>
+            <div class="stat-val">$48,295</div>
+            <div class="stat-badge up">↑ 12.5% this month</div>
+            <div class="stat-bar-chart">
+              ${[40,65,45,80,60,90,55,72,85,48,70,95].map((h,i)=>`
+                <div class="sbc-bar${i===11?' active':''}" style="height:${h}%;background:${i===11?'var(--pv-500)':'var(--pv-200)'}"></div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="preview-section-label">Profile Card</div>
+          <div class="pc profile-card">
+            <div class="avatar">JK</div>
+            <div class="profile-name">Jamie Kim</div>
+            <div class="profile-role">Senior Designer @ Vercel</div>
+            <div class="profile-stats">
+              <div class="pstat"><div class="pstat-val">248</div><div class="pstat-label">Posts</div></div>
+              <div class="pstat"><div class="pstat-val">12.4k</div><div class="pstat-label">Followers</div></div>
+              <div class="pstat"><div class="pstat-val">891</div><div class="pstat-label">Following</div></div>
+            </div>
+            <button class="follow-btn">Follow</button>
+          </div>
+        </div>
+        <div>
+          <div class="preview-section-label">Pricing Card</div>
+          <div class="pc pricing">
+            <div class="pricing-badge">Most Popular</div>
+            <div class="pricing-plan">Pro</div>
+            <div class="pricing-price">
+              <div class="pricing-amt">$29</div>
+              <div class="pricing-per">/ month</div>
+            </div>
+            <ul class="pricing-feats">
+              ${['Unlimited projects','Advanced analytics','Priority support','Custom domains'].map(f=>`<li><div class="feat-check">✓</div>${f}</li>`).join('')}
+            </ul>
+            <button class="pricing-cta">Get started</button>
+          </div>
+        </div>
+      </div>
+      <div class="preview-row cols-2">
+        <div>
+          <div class="preview-section-label">Notification Card</div>
+          <div class="pc" style="padding:0;overflow:hidden">
+            ${[
+              {icon:'🎉',title:'Deployment successful',sub:'chroma-app was deployed 2 min ago',dot:true},
+              {icon:'💬',title:'New comment on design',sub:'Alex left a comment on your mockup',dot:false},
+              {icon:'⚡',title:'Performance alert',sub:'Response time exceeded threshold',dot:true},
+            ].map(n=>`
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #f5f5f5;position:relative">
+                <div style="width:38px;height:38px;border-radius:10px;background:var(--pv-50);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${n.icon}</div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600;color:#111;font-family:'Syne',sans-serif">${n.title}</div>
+                  <div style="font-size:11px;color:#888;margin-top:2px;font-family:'Syne',sans-serif">${n.sub}</div>
+                </div>
+                ${n.dot?`<div style="width:8px;height:8px;border-radius:50%;background:var(--pv-500);flex-shrink:0"></div>`:''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        <div>
+          <div class="preview-section-label">Product Card</div>
+          <div class="pc" style="overflow:hidden">
+            <div style="height:140px;background:var(--pv-100);display:flex;align-items:center;justify-content:center;font-size:40px">
+              🎨
+            </div>
+            <div style="padding:18px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <div style="font-size:16px;font-weight:800;color:#111;font-family:'Syne',sans-serif">Pro Design Kit</div>
+                <span class="badge primary">New</span>
+              </div>
+              <div style="font-size:12px;color:#666;font-family:'Syne',sans-serif;line-height:1.5;margin-bottom:14px">Complete UI component library with 500+ components for modern web apps.</div>
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:22px;font-weight:800;color:#111;font-family:'Syne',sans-serif">$79 <span style="font-size:13px;font-weight:500;color:#aaa;text-decoration:line-through">$149</span></div>
+                <button class="pv-btn primary sm">Add to cart</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDashboardTab() {
+  const panel=document.getElementById('tab-dashboard');
+  panel.innerHTML=`
+    <div class="preview-wrap">
+      <div class="preview-section-label">Analytics Dashboard</div>
+      <div class="dash">
+        <div class="dash-header">
+          <div>
+            <div class="dash-title">Analytics Overview</div>
+            <div style="font-size:12px;color:#888;margin-top:2px;font-family:'Syne',sans-serif">March 2026</div>
+          </div>
+          <button class="dash-cta">Export Report</button>
+        </div>
+        <div class="dash-stats">
+          ${[
+            {l:'Total Revenue',v:'$124,592',t:'+18.2%'},
+            {l:'Active Users',v:'94,130',t:'+7.4%'},
+            {l:'Conversion',v:'3.68%',t:'+0.4%'},
+          ].map(s=>`
+            <div class="ds-card">
+              <div class="ds-label">${s.l}</div>
+              <div class="ds-val">${s.v}</div>
+              <div class="ds-trend up">↑ ${s.t} vs last month</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="ds-chart">
+          <div class="ds-chart-title">Monthly Revenue</div>
+          <div class="ds-bars">
+            ${[42,58,50,72,65,85,70,90,78,88,72,100].map((h,i)=>`
+              <div class="ds-bar" style="height:${h}%;background:${i===11?'var(--pv-500)':i>=9?'var(--pv-300)':'var(--pv-200)'}"></div>
+            `).join('')}
+          </div>
+          <div class="ds-bar-labels">
+            ${['J','F','M','A','M','J','J','A','S','O','N','D'].map(m=>`<span class="ds-bar-lbl">${m}</span>`).join('')}
+          </div>
+        </div>
+        <div style="margin-top:14px">
+          <div class="ds-chart">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div class="ds-chart-title">Recent Transactions</div>
+              <span class="badge primary">Live</span>
+            </div>
+            ${[
+              {name:'Figma Pro',amount:'+$99',time:'2 min ago',color:'var(--pv-100)',tc:'var(--pv-700)'},
+              {name:'GitHub Copilot',amount:'+$19',time:'1 hr ago',color:'#dcfce7',tc:'#15803d'},
+              {name:'Vercel Pro',amount:'+$20',time:'3 hr ago',color:'var(--pv-50)',tc:'var(--pv-600)'},
+              {name:'AWS Credits',amount:'+$250',time:'Yesterday',color:'#fef9c3',tc:'#a16207'},
+            ].map(t=>`
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:36px;height:36px;border-radius:8px;background:${t.color};display:flex;align-items:center;justify-content:center;font-size:14px">💳</div>
+                  <div>
+                    <div style="font-size:13px;font-weight:600;color:#111;font-family:'Syne',sans-serif">${t.name}</div>
+                    <div style="font-size:11px;color:#aaa;font-family:'Syne',sans-serif">${t.time}</div>
+                  </div>
+                </div>
+                <div style="font-size:14px;font-weight:700;color:${t.tc};font-family:'Syne',sans-serif">${t.amount}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWebsiteTab() {
+  const panel=document.getElementById('tab-website');
+  panel.innerHTML=`
+    <div class="preview-wrap">
+      <div class="preview-section-label">Landing Page Preview</div>
+      <div class="wp">
+        <div class="wp-nav">
+          <div class="wp-logo">⬡ Acme</div>
+          <div class="wp-nav-links">
+            <a class="wp-nav-link">Features</a>
+            <a class="wp-nav-link">Pricing</a>
+            <a class="wp-nav-link">Docs</a>
+            <a class="wp-nav-link">Blog</a>
+          </div>
+          <button class="wp-nav-cta">Start free →</button>
+        </div>
+        <div class="wp-hero">
+          <div class="wp-hero-badge">✦ Now in public beta</div>
+          <h1 class="wp-hero-title">Design tools that <span>move fast</span></h1>
+          <p class="wp-hero-sub">The modern platform for teams to design, prototype and ship faster than ever before.</p>
+          <div class="wp-hero-btns">
+            <button class="wp-btn-primary">Get started free</button>
+            <button class="wp-btn-ghost">See the demo →</button>
+          </div>
+        </div>
+        <div class="wp-feats">
+          ${[
+            {icon:'⚡',title:'Blazing Fast',desc:'Build and preview changes in milliseconds with our edge-powered runtime'},
+            {icon:'🎨',title:'Design Ready',desc:'Beautiful components out of the box, fully customizable to match your brand'},
+            {icon:'🔒',title:'Secure by Default',desc:'Enterprise-grade security with SOC2 compliance and advanced access controls'},
+          ].map(f=>`
+            <div class="wp-feat">
+              <div class="wp-feat-icon">${f.icon}</div>
+              <div class="wp-feat-title">${f.title}</div>
+              <div class="wp-feat-desc">${f.desc}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ─── TAB SWITCHING ───────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('tab-'+name).classList.add('on');
+  state.activeTab=name;
+}
+
+// ─── COPY ────────────────────────────────────────────────
+function copyShade(hex, val, el) {
+  navigator.clipboard.writeText(val).then(()=>{
+    el.classList.add('copied');
+    setTimeout(()=>el.classList.remove('copied'),900);
+    showToast('Copied '+val);
+  });
+}
+function copyAllShades(id) {
+  const sc=state.scales.find(s=>s.id===id);
+  if(!sc) return;
+  const stops=[50,100,200,300,400,500,600,700,800,900,950];
+  const text=stops.map(n=>`${n}: ${formatValue(sc.shades[n],sc.format)}`).join('\n');
+  navigator.clipboard.writeText(text).then(()=>showToast('Copied '+sc.name+' scale!'));
+}
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('on'),2200);
+}
+
+// ─── EXPORT ──────────────────────────────────────────────
+function openExportModal(fmt) {
+  if(fmt) { state.exportFmt=fmt; }
+  document.querySelectorAll('.mft-btn').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.mft-btn').forEach(b=>{
+    if(b.getAttribute('onclick').includes(`'${state.exportFmt}'`)) b.classList.add('on');
+  });
+  generateExportCode();
+  document.getElementById('exportModal').classList.add('open');
+}
+function closeExportModal() {
+  document.getElementById('exportModal').classList.remove('open');
+}
+function closeModalIfOverlay(e) {
+  if(e.target===e.currentTarget) closeExportModal();
+}
+function setExportFmt(fmt, btn) {
+  state.exportFmt=fmt;
+  document.querySelectorAll('.mft-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  generateExportCode();
+}
+function generateExportCode() {
+  const stops=[50,100,200,300,400,500,600,700,800,900,950];
+  let code='';
+  if(state.exportFmt==='tailwind') {
+    code='// tailwind.config.js\nmodule.exports = {\n  theme: {\n    extend: {\n      colors: {\n';
+    state.scales.forEach(sc=>{
+      const n=sc.name.toLowerCase().replace(/\s+/g,'-');
+      code+=`        '${n}': {\n`;
+      stops.forEach(s=>{ code+=`          ${s}: '${sc.shades[s]}',\n`; });
+      code+=`        },\n`;
+    });
+    code+=`      },\n    },\n  },\n}`;
+  } else if(state.exportFmt==='css') {
+    code=':root {\n';
+    state.scales.forEach(sc=>{
+      const n=sc.name.toLowerCase().replace(/\s+/g,'-');
+      stops.forEach(s=>{ code+=`  --color-${n}-${s}: ${sc.shades[s]};\n`; });
+    });
+    code+='}';
+  } else {
+    const obj={};
+    state.scales.forEach(sc=>{
+      const n=sc.name.toLowerCase().replace(/\s+/g,'-');
+      obj[n]={};
+      stops.forEach(s=>{ obj[n][s]=sc.shades[s]; });
+    });
+    code=JSON.stringify(obj,null,2);
+  }
+  document.getElementById('exportCode').textContent=code;
+}
+function copyExportCode() {
+  const code=document.getElementById('exportCode').textContent;
+  navigator.clipboard.writeText(code).then(()=>showToast('Code copied!'));
+}
+
+// ─── KEYBOARD ─────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeExportModal();
+});
+
+// ─── INIT ─────────────────────────────────────────────────
+function init() {
+  INITIAL_COLORS.forEach(c=>addScale(c.hex, c.name));
+}
+init();
+</script>
+</body>
+</html>
